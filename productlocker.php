@@ -18,37 +18,41 @@
 
 // If this file is called directly, abort.
 
-define( 'PLCR_NAME', 'productlocker' );
-define( 'PLCR_PATH', plugin_dir_path( __FILE__ ) );
+define( 'PRODLCR_NAME', 'productlocker' );
+define( 'PRODLCR_PATH', plugin_dir_path( __FILE__ ) );
 
-if ( ! defined( 'WPINC' ) && ! defined('PLCR_NAME') && ! defined('PLCR_PATH')) {
+if ( ! defined( 'WPINC' ) && ! defined('PRODLCR_NAME') && ! defined('PRODLCR_PATH')) {
 	die;
+}
+
+function productlocker_admin_noticess(){
+    $message = sprintf(
+        /* translators: 1: Plugin Name 2: Elementor */
+        print_r( '%1$s requires <a href="https://wordpress.org/plugins/woocommerce/"> %2$s </a> to be installed and activated.', 'productlocker' ),
+        '<strong>' . esc_html__( 'ProductLocker', 'productlocker' ) . '</strong>',
+        '<strong>' . esc_html__( 'WooCommerce', 'productlocker' ) . '</strong>'
+    );
+
+    printf( '<div class="notice notice-warning is-dismissible"><p>%1$s</p></div>', $message );
 }
 
 add_action( 'plugins_loaded', 'productlocker_init' );
 function productlocker_init() {
-    if(!class_exists('WC_Subscriptions')){
+    if(!class_exists('WooCommerce')){
         add_action( 'admin_notices', 'productlocker_admin_noticess' );
+    }else{
+        load_plugin_textdomain( 'productlocker', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
+
+        add_action('init', 'productlocker_run');
     }
-
-    load_plugin_textdomain( 'productlocker', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
-
-    add_action('init', 'productlocker_run');
 }
 
 // Main Function iitialize
 function productlocker_run(){
-
-    function productlocker_admin_noticess(){
-        $message = sprintf(
-            /* translators: 1: Plugin Name 2: Elementor */
-            esc_html__( '"%1$s" requires "%2$s" to be installed and activated.', 'productlocker' ),
-            '<strong>' . esc_html__( 'productlocker', 'productlocker' ) . '</strong>',
-            '<strong>' . esc_html__( 'Woocommerce Subscriptions', 'productlocker' ) . '</strong>'
-        );
-
-        printf( '<div class="notice notice-warning is-dismissible"><p>%1$s</p></div>', $message );
-    }
+    /**
+     * {---CUSTOM FIELD FOR PRODUCT SETUP---}
+     */
+    require_once PRODLCR_PATH.'inc/productlocker-product-setup.php';
 
     register_activation_hook( __FILE__, 'activate_productlocker_cplgn' );
     register_deactivation_hook( __FILE__, 'deactivate_productlocker_cplgn' );
@@ -58,12 +62,11 @@ function productlocker_run(){
         // global $wpdb;
         // require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
 
-        // $productlocker_v1 = "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}productlocker__v1` (
+        // $productlocker_v1 = "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}productlocker_v1` (
         //     `ID` INT NOT NULL AUTO_INCREMENT,
         //     `user_id` INT NOT NULL,
-        //     `username` VARCHAR(255) NOT NULL,
-        //     `account1` INT NOT NULL,
-        //     `account2` INT NOT NULL,
+        //     `product_id` INT NOT NULL,
+        //     `validity` INT NOT NULL,
         //     PRIMARY KEY (`ID`)) ENGINE = InnoDB";
         //     dbDelta($productlocker_v1);
     }
@@ -75,68 +78,61 @@ function productlocker_run(){
 
     // Admin Enqueue Scripts
     add_action('admin_enqueue_scripts',function(){
-        wp_register_script( PLCR_NAME, plugin_dir_url( __FILE__ ).'admin/js/productlocker-admin.js', array(), 
+        wp_register_style( PRODLCR_NAME, plugin_dir_url( __FILE__ ).'admin/css/productlocker-admin.css', array(), microtime(), 'all' );
+        wp_enqueue_style(PRODLCR_NAME);
+
+        wp_register_script( PRODLCR_NAME, plugin_dir_url( __FILE__ ).'admin/js/productlocker-admin.js', array(), 
         microtime(), true );
-        wp_enqueue_script(PLCR_NAME);
-        wp_localize_script( PLCR_NAME, 'admin_ajax_action', array(
+        wp_enqueue_script(PRODLCR_NAME);
+        // I recommend to add additional conditions just to not to load the scipts on each page
+ 
+        if ( ! did_action( 'wp_enqueue_media' ) ) {
+            wp_enqueue_media();
+        }
+        wp_localize_script( PRODLCR_NAME, 'admin_ajax_action', array(
             'ajaxurl' => admin_url( 'admin-ajax.php' )
         ) );
     });
 
     // WP Enqueue Scripts
     add_action('wp_enqueue_scripts',function(){
-        wp_register_style( PLCR_NAME, plugin_dir_url( __FILE__ ).'public/css/productlocker-public.css', array(), microtime(), 'all' );
-        wp_enqueue_style(PLCR_NAME);
+        wp_register_style( PRODLCR_NAME, plugin_dir_url( __FILE__ ).'public/css/productlocker-public.css', array(), microtime(), 'all' );
+        wp_enqueue_style(PRODLCR_NAME);
 
-        wp_register_script( PLCR_NAME, plugin_dir_url( __FILE__ ).'public/js/productlocker-public.js', array(), 
+        wp_register_script( PRODLCR_NAME, plugin_dir_url( __FILE__ ).'public/js/productlocker-public.js', array(), 
         microtime(), true );
-        wp_enqueue_script(PLCR_NAME);
-        wp_localize_script( PLCR_NAME, 'public_ajax_action', array(
+        wp_enqueue_script(PRODLCR_NAME);
+        wp_localize_script( PRODLCR_NAME, 'public_ajax_action', array(
             'ajaxurl' => admin_url( 'admin-ajax.php' ),
             'nonce' => wp_create_nonce( 'nonces' )
         ) );
     });
 
-    // Register Menu
-    add_action('admin_menu', function(){
-        add_menu_page( 'ProductLocker', 'ProductLocker', 'manage_options', 'productlocker', 'productlocker_menupage_display', 'dashicons-admin-network', 45 );
-    
-        // // For colors
-        // add_settings_section( 'productlocker_colors_section', 'Activation Colors', '', 'productlocker_colors' );
-    
-        // //Activate Button
-        // add_settings_field( 'productlocker_activate_button', 'Activate Button', 'productlocker_activate_button_func', 'productlocker_colors', 'productlocker_colors_section');
-        // register_setting( 'productlocker_colors_section', 'productlocker_activate_button');
-        
-    });
+    add_shortcode( 'lcrplacebtn', 'productshow_callback' );
+    function productshow_callback($content){
+        global $post;
+        ob_start();
+        ?>
+        <div id="payment_form"></div>
+        <div class="lockedview">
+            <img width="300" src="<?php echo plugin_dir_url(__FILE__); ?>images/locked.png" alt="">
 
-    // activate Button colors
-    // function productlocker_activate_button_func(){
+            <div class="locked_button_wrap">
+               <?php echo do_shortcode( '[wppayform id="154"]' ); ?>
+            </div>
+        </div>
         
-    // }
-
-    // productlocker_reset_colors
-    // add_action("wp_ajax_productlocker_reset_colors", "productlocker_reset_colors");
-    // add_action("wp_ajax_nopriv_productlocker_reset_colors", "productlocker_reset_colors");
+        <?php
+        return ob_get_clean();
+    }
 
     // Menu callback funnction
     function productlocker_menupage_display(){
         if(class_exists('WC_Subscriptions')){
-            wp_enqueue_script(PLCR_NAME);
+            wp_enqueue_script(PRODLCR_NAME);
             ?>
             <h1>Menu page</h1>
             <?php
-            // echo '<form action="options.php" method="post" id="productlocker_colors">';
-            // echo '<h1>Activation Colors</h1><hr>';
-            // echo '<table class="form-table">';
-
-            // settings_fields( 'productlocker_colors_section' );
-            // do_settings_fields( 'productlocker_colors', 'productlocker_colors_section' );
-            
-            // echo '</table>';
-            // submit_button();
-            // echo '<button id="rest_color">Reset</button>';
-            // echo '</form>';
         }
     }
 }
